@@ -403,14 +403,30 @@ async function scriptPost(action, data){
 async function syncFromSheet(){
   setSyncBadge('syncing');
   try {
-    const [mRes, sRes] = await Promise.all([
+    const [mRes, sRes, shRes] = await Promise.all([
       scriptGet('getMetrics'),
-      scriptGet('getSessions')
+      scriptGet('getSessions'),
+      scriptGet('getSupps'),
     ]);
     if(mRes.metrics) ss('fitMetrics', mRes.metrics);
     if(sRes.sessions) ss('fitSessions', sRes.sessions);
+    if(shRes.supps){
+      // Merge sheet supps into local suppHistory and individual keys
+      let suppHist=gs('suppHistory',{});
+      shRes.supps.forEach(row=>{
+        if(!row.date) return;
+        suppHist[row.date]={vitd:row.vitd,b12:row.b12,acv:row.acv};
+        // Also restore individual keys so pills show correctly today
+        if(row.date===todayKey()){
+          ss('vitd_'+row.date, row.vitd);
+          ss('b12_'+row.date,  row.b12);
+          ss('acv_'+row.date,  row.acv);
+        }
+      });
+      ss('suppHistory', suppHist);
+    }
     setSyncBadge('connected');
-    renderLatestMetrics(); renderWeekGrid(); renderStreak();
+    renderLatestMetrics(); renderWeekGrid(); renderStreak(); updateSuppPills();
     if(document.getElementById('history').classList.contains('visible')) renderHistory();
   } catch(e){
     setSyncBadge('error');
@@ -459,12 +475,26 @@ function toggleSupp(key){
   const today=todayKey();
   const k=key+'_'+today;
   ss(k,!gs(k,false));
-  // Save to supplement history
+  // Save to local supplement history
   let suppHist=gs('suppHistory',{});
   if(!suppHist[today]) suppHist[today]={};
   suppHist[today][key]=gs(k,false);
   ss('suppHistory',suppHist);
   updateSuppPills();
+  // Sync today's full supplement record to Google Sheets
+  if(hasScript()){
+    const todayRecord={
+      date:today,
+      vitd: gs('vitd_'+today,false),
+      b12:  gs('b12_'+today,false),
+      acv:  gs('acv_'+today,false),
+    };
+    // Override with latest toggle
+    todayRecord[key]=gs(k,false);
+    scriptPost('saveSupp', todayRecord)
+      .then(()=>setSyncBadge('connected'))
+      .catch(e=>console.error('Supp sync failed:',e));
+  }
 }
 function updateSuppPills(){
   const today=todayKey();
