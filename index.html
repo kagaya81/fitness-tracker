@@ -260,6 +260,10 @@
       <div class="card" id="sessionHistory">
         <div class="empty"><span class="empty-icon">🏃</span><div class="empty-text">No sessions or activities logged yet.</div></div>
       </div>
+      <p class="section-label" style="margin-top:16px;">Supplement history</p>
+      <div class="card" id="suppHistory">
+        <div class="empty"><span class="empty-icon">💊</span><div class="empty-text">No supplement history yet.</div></div>
+      </div>
     </div>
   </div>
 
@@ -452,7 +456,15 @@ const SUPPS={
   acv: { id:'acvPill',  emoji:'🍎', label:'ACV',     takenLabel:'✅ ACV'  },
 };
 function toggleSupp(key){
-  const k=key+'_'+todayKey(); ss(k,!gs(k,false)); updateSuppPills();
+  const today=todayKey();
+  const k=key+'_'+today;
+  ss(k,!gs(k,false));
+  // Save to supplement history
+  let suppHist=gs('suppHistory',{});
+  if(!suppHist[today]) suppHist[today]={};
+  suppHist[today][key]=gs(k,false);
+  ss('suppHistory',suppHist);
+  updateSuppPills();
 }
 function updateSuppPills(){
   const today=todayKey();
@@ -880,6 +892,39 @@ function renderHistory(){
       </div>`;
     }).join('');
   }
+
+  // ── SUPPLEMENT HISTORY ──
+  const shEl=document.getElementById('suppHistory');
+  if(!shEl) return;
+  const suppHist=gs('suppHistory',{});
+  const suppKeys=Object.keys(suppHist).sort((a,b)=>b.localeCompare(a));
+  if(!suppKeys.length){
+    shEl.innerHTML='<div class="empty"><span class="empty-icon">💊</span><div class="empty-text">No supplement history yet.<br>Tap your supplements daily to build history.</div></div>';
+  } else {
+    const SUPP_DEF=[
+      {key:'vitd', emoji:'☀️', label:'Vit D'},
+      {key:'b12',  emoji:'💊', label:'B12'},
+      {key:'acv',  emoji:'🍎', label:'ACV'},
+    ];
+    // Header row
+    let tableHtml=`<div style="display:grid;grid-template-columns:90px repeat(3,1fr);gap:4px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;">Date</span>
+      ${SUPP_DEF.map(s=>`<span style="font-size:11px;color:var(--text2);text-align:center;">${s.emoji} ${s.label}</span>`).join('')}
+    </div>`;
+    // Data rows
+    tableHtml+=suppKeys.slice(0,60).map(date=>{
+      const day=suppHist[date]||{};
+      // Also check raw localStorage keys as fallback
+      const cols=SUPP_DEF.map(s=>{
+        const taken=day[s.key]!=null?day[s.key]:gs(s.key+'_'+date,false);
+        return`<span style="text-align:center;font-size:14px;">${taken?'✅':'<span style="color:var(--text3);font-size:11px;">✗</span>'}</span>`;
+      }).join('');
+      return`<div style="display:grid;grid-template-columns:90px repeat(3,1fr);gap:4px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center;">
+        <span class="hist-date">${date}</span>${cols}
+      </div>`;
+    }).join('');
+    shEl.innerHTML=tableHtml;
+  }
 }
 
 /* ── BACKUP / EXPORT / IMPORT ── */
@@ -891,11 +936,12 @@ function exportData(){
     if(k&&k.startsWith('otherActs_')) otherActsData[k]=gs(k,[]);
   }
   const payload={
-    version:2,
+    version:3,
     exportedAt:new Date().toISOString(),
     metrics:getMetrics(),
     sessions:getSessions(),
     otherActs:otherActsData,
+    suppHistory:gs('suppHistory',{}),
   };
   const json=JSON.stringify(payload,null,2);
   const blob=new Blob([json],{type:'application/json'});
@@ -934,6 +980,14 @@ function importData(event){
       ss('fitSessions',exSess);
       // Restore otherActs
       if(data.otherActs){Object.entries(data.otherActs).forEach(([k,v])=>ss(k,v));}
+      // Restore supplement history
+      if(data.suppHistory){
+        let existing=gs('suppHistory',{});
+        Object.entries(data.suppHistory).forEach(([date,vals])=>{
+          existing[date]=existing[date]?{...existing[date],...vals}:vals;
+        });
+        ss('suppHistory',existing);
+      }
       okMsg.style.display='block';setTimeout(()=>okMsg.style.display='none',3000);
       renderWeekGrid();renderStreak();renderLatestMetrics();updateBackupScreen();
       showToast('⬆ Data restored!');
