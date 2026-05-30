@@ -467,7 +467,7 @@ function renderWeekGrid(){
 
 function renderStreak(){
   const sessions=getSessions();
-  document.getElementById('streakNum').textContent=sessions.filter(s=>s.completed||s.bonusJog||s.bonusStrength).length;
+  document.getElementById('streakNum').textContent=sessions.filter(s=>s.completed||s.bonusJog||s.bonusStrength||(s.otherActs&&s.otherActs.length)).length;
   const wa=new Date();wa.setDate(wa.getDate()-7);
   const tw=sessions.filter(s=>s.completed&&new Date(s.date)>=wa).length;
   const pct=Math.min(100,Math.round(tw/4*100));
@@ -731,7 +731,7 @@ function renderHistory(){
   const sEl=document.getElementById('sessionHistory');
   const all=sessions.filter(s=>s.completed||s.bonusJog).sort((a,b)=>b.date.localeCompare(a.date));
   const tl={strength:'Strength',jog:'Slow jog',bonusjog:'Bonus jog'};
-  if(!all.length){sEl.innerHTML='<div class="empty"><span class="empty-icon">🏃</span><div class="empty-text">No sessions completed yet.</div></div>';}
+  if(!all.length){sEl.innerHTML='<div class="empty"><span class="empty-icon">🏃</span><div class="empty-text">No sessions or activities logged yet.</div></div>';}
   else{sEl.innerHTML=all.slice(0,20).map(s=>`<div class="hist-row"><span class="hist-date">${s.date}</span><div style="display:flex;gap:5px;">${s.completed?`<span class="badge badge-green">${tl[s.type]||'Session'} ✓</span>`:''} ${s.bonusJog?`<span class="badge badge-amber">+Bonus jog ✓</span>`:''}</div></div>`).join('');}
 }
 
