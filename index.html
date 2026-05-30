@@ -100,6 +100,14 @@
   .btn-danger{background:transparent;color:var(--red);border:1px solid rgba(240,82,82,0.3);}
   .btn-danger:hover{background:var(--red-dim);}
   .badge{display:inline-block;font-size:10px;font-weight:600;padding:3px 8px;border-radius:20px;font-family:'DM Mono',monospace;}
+  .htab{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 4px;font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;}
+  .htab.active{background:var(--blue-dim);color:var(--blue);border-color:rgba(79,142,247,0.3);}
+  .graph-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px;}
+  .graph-title{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:flex;justify-content:space-between;align-items:baseline;}
+  .graph-current{font-size:22px;font-weight:600;font-family:'DM Mono',monospace;color:var(--text);}
+  .graph-unit{font-size:11px;color:var(--text2);font-weight:400;}
+  .graph-target{font-size:11px;margin-left:6px;}
+  .graph-svg{width:100%;margin-top:8px;display:block;}
   .badge-green{background:var(--green-dim2);color:var(--green);}
   .badge-blue{background:var(--blue-dim);color:var(--blue);}
   .badge-amber{background:var(--amber-dim);color:var(--amber);}
@@ -233,13 +241,25 @@
 
   <!-- HISTORY -->
   <div id="history" class="screen">
-    <p class="section-label">Body metrics</p>
-    <div class="card" id="historyContent">
-      <div class="empty"><span class="empty-icon">📊</span><div class="empty-text">No readings yet.<br>Log your first Xiaomi scale reading.</div></div>
+    <div style="display:flex;gap:4px;margin-bottom:16px;">
+      <button class="htab active" onclick="switchHTab('graphs',this)">📈 Graphs</button>
+      <button class="htab" onclick="switchHTab('log',this)">📋 Log</button>
+      <button class="htab" onclick="switchHTab('sessions',this)">🏃 Sessions</button>
     </div>
-    <p class="section-label" style="margin-top:16px;">Sessions</p>
-    <div class="card" id="sessionHistory">
-      <div class="empty"><span class="empty-icon">🏃</span><div class="empty-text">No sessions completed yet.</div></div>
+    <div id="hTabGraphs">
+      <div id="historyContent">
+        <div class="empty"><span class="empty-icon">📊</span><div class="empty-text">No readings yet.<br>Log your first Xiaomi scale reading.</div></div>
+      </div>
+    </div>
+    <div id="hTabLog" style="display:none;">
+      <div class="card" id="historyLogContent">
+        <div class="empty"><span class="empty-icon">📋</span><div class="empty-text">No readings yet.</div></div>
+      </div>
+    </div>
+    <div id="hTabSessions" style="display:none;">
+      <div class="card" id="sessionHistory">
+        <div class="empty"><span class="empty-icon">🏃</span><div class="empty-text">No sessions or activities logged yet.</div></div>
+      </div>
     </div>
   </div>
 
@@ -722,17 +742,144 @@ function renderLatestMetrics(){
   }).join('');
 }
 
+function switchHTab(tab, btn){
+  document.querySelectorAll('.htab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  document.getElementById('hTabGraphs').style.display   = tab==='graphs'  ?'block':'none';
+  document.getElementById('hTabLog').style.display      = tab==='log'     ?'block':'none';
+  document.getElementById('hTabSessions').style.display = tab==='sessions'?'block':'none';
+}
+
+function sparkline(values, targets, higherBetter, color){
+  if(values.length < 2) return '';
+  const W=280, H=60, PAD=4;
+  const nums=values.map(v=>parseFloat(v)).filter(n=>!isNaN(n));
+  if(!nums.length) return '';
+  const mn=Math.min(...nums), mx=Math.max(...nums);
+  const range=mx-mn||1;
+  function px(v){ return PAD + (v-mn)/range*(W-PAD*2); }
+  function py(v){ return H-PAD - (v-mn)/range*(H-PAD*2); }
+  const pts=nums.map((v,i)=>`${px(v+(i*0))},${py(v)}`);
+  // Actually map by index for x axis
+  const xStep=(W-PAD*2)/(nums.length-1);
+  const points=nums.map((v,i)=>`${PAD+i*xStep},${py(v)}`).join(' ');
+  const firstPt=`${PAD},${py(nums[0])}`;
+  const lastPt=`${PAD+(nums.length-1)*xStep},${py(nums[nums.length-1])}`;
+  // target line
+  let targetLine='';
+  if(targets!=null){
+    const ty=py(targets);
+    if(ty>=0&&ty<=H) targetLine=`<line x1="${PAD}" y1="${ty}" x2="${W-PAD}" y2="${ty}" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="3,3"/>`;
+  }
+  // trend color: last vs first
+  const trend=nums[nums.length-1]-nums[0];
+  const trendGood=higherBetter===null?true:(higherBetter?trend>=0:trend<=0);
+  const lineColor=trendGood?'#2ecc8a':'#f05252';
+  // Fill area
+  const fillPts=`${PAD},${H-PAD} `+nums.map((v,i)=>`${PAD+i*xStep},${py(v)}`).join(' ')+` ${PAD+(nums.length-1)*xStep},${H-PAD}`;
+  return `<svg class="graph-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:60px;">
+    <defs><linearGradient id="g${color.replace('#','')}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${lineColor}" stop-opacity="0.3"/><stop offset="100%" stop-color="${lineColor}" stop-opacity="0"/></linearGradient></defs>
+    <polygon points="${fillPts}" fill="url(#g${color.replace('#','')})" />
+    ${targetLine}
+    <polyline points="${nums.map((v,i)=>`${PAD+i*xStep},${py(v)}`).join(' ')}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${PAD+(nums.length-1)*xStep}" cy="${py(nums[nums.length-1])}" r="3" fill="${lineColor}"/>
+    <circle cx="${PAD}" cy="${py(nums[0])}" r="2.5" fill="${lineColor}" opacity="0.5"/>
+  </svg>`;
+}
+
 function renderHistory(){
-  const metrics=getMetrics(),sessions=getSessions();
+  const metrics=getMetrics(), sessions=getSessions();
+
+  // ── GRAPHS TAB ──
   const hEl=document.getElementById('historyContent');
-  function tr(c,p,hb){if(!p||c==null)return'';const d=(c-p).toFixed(1);if(d==0)return`<span class="t-flat">→</span>`;const up=d>0,good=hb==null?false:(hb?up:!up);return`<span class="${good?'t-up':'t-down'}">${up?'▲':'▼'}${Math.abs(d)}</span>`;}
-  if(!metrics.length){hEl.innerHTML='<div class="empty"><span class="empty-icon">📊</span><div class="empty-text">No readings yet.</div></div>';}
-  else{hEl.innerHTML=[...metrics].reverse().map((m,i,arr)=>{const p=arr[i+1];return`<div class="hist-row"><span class="hist-date">${m.date}</span><div class="hist-vals">${m.metab?`<span class="hist-val">${m.metab}kcal ${tr(m.metab,p?.metab,true)}</span>`:''} ${m.bone?`<span class="hist-val">B${m.bone}kg ${tr(m.bone,p?.bone,true)}</span>`:''} ${m.muscle?`<span class="hist-val">M${m.muscle}kg ${tr(m.muscle,p?.muscle,true)}</span>`:''} ${m.bodyFat?`<span class="hist-val">F${m.bodyFat}% ${tr(m.bodyFat,p?.bodyFat,false)}</span>`:''} ${m.visceral?`<span class="hist-val">V${m.visceral} ${tr(m.visceral,p?.visceral,false)}</span>`:''}</div></div>`;}).join('');}
+  if(!metrics.length){
+    hEl.innerHTML='<div class="empty"><span class="empty-icon">📊</span><div class="empty-text">No readings yet.<br>Log your first Xiaomi scale reading.</div></div>';
+  } else {
+    const GRAPH_FIELDS=[
+      {k:'metab',   label:'Metabolism',  u:'kcal', target:1338, hb:true},
+      {k:'bone',    label:'Bone mass',   u:'kg',   target:2.8,  hb:true},
+      {k:'muscle',  label:'Muscle',      u:'kg',   target:49.4, hb:true},
+      {k:'bodyFat', label:'Body fat',    u:'%',    target:null, hb:false},
+      {k:'visceral',label:'Visceral fat',u:'',     target:null, hb:false},
+      {k:'weight',  label:'Weight',      u:'kg',   target:null, hb:null},
+    ];
+    const sorted=[...metrics].sort((a,b)=>a.date.localeCompare(b.date));
+    hEl.innerHTML=GRAPH_FIELDS.map(f=>{
+      const vals=sorted.map(m=>m[f.k]).filter(v=>v!=null);
+      if(!vals.length) return '';
+      const latest=vals[vals.length-1];
+      const prev=vals.length>1?vals[vals.length-2]:null;
+      const diff=prev!=null?(latest-prev).toFixed(1):null;
+      const up=diff>0;
+      const good=f.hb===null?true:(f.hb?up:!up);
+      const trendHtml=diff!=null&&diff!=0?`<span style="font-size:11px;color:${good?'#2ecc8a':'#f05252'};">${up?'▲':'▼'}${Math.abs(diff)}${f.u}</span>`:'';
+      const onTrack=f.target!=null?(f.hb?latest>=f.target:latest<=f.target):null;
+      const targetHtml=f.target!=null?`<span class="graph-target" style="color:${onTrack?'#2ecc8a':'#f0a430'};">${onTrack?'✓ on track':'target: '+f.target+f.u}</span>`:'';
+      const svg=vals.length>1?sparkline(vals,f.target,f.hb,'#4f8ef7'):'<div style="font-size:11px;color:var(--text3);padding:8px 0;">Log more readings to see trend</div>';
+      return `<div class="graph-card">
+        <div class="graph-title">
+          <span>${f.label}</span>
+          <span>${targetHtml}</span>
+        </div>
+        <div><span class="graph-current">${latest}<span class="graph-unit"> ${f.u}</span></span> ${trendHtml}</div>
+        ${svg}
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:2px;">
+          <span>${sorted[0]?.date||''}</span><span>${sorted[sorted.length-1]?.date||''}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── LOG TAB ──
+  const logEl=document.getElementById('historyLogContent');
+  if(!metrics.length){
+    logEl.innerHTML='<div class="empty"><span class="empty-icon">📋</span><div class="empty-text">No readings yet.</div></div>';
+  } else {
+    function tr(c,p,hb){if(!p||c==null)return'';const d=(c-p).toFixed(1);if(d==0)return'<span class="t-flat">→</span>';const up=d>0,good=hb==null?false:(hb?up:!up);return`<span class="${good?'t-up':'t-down'}">${up?'▲':'▼'}${Math.abs(d)}</span>`;}
+    logEl.innerHTML='<div class="card" style="padding:0;overflow:hidden;">'+[...metrics].reverse().map((m,i,arr)=>{const p=arr[i+1];return`<div class="hist-row" style="padding:10px 16px;flex-direction:column;align-items:flex-start;gap:4px;"><span class="hist-date">${m.date}</span><div class="hist-vals">${m.metab?`<span class="hist-val">${m.metab}kcal ${tr(m.metab,p?.metab,true)}</span>`:''} ${m.bone?`<span class="hist-val">Bone ${m.bone}kg ${tr(m.bone,p?.bone,true)}</span>`:''} ${m.muscle?`<span class="hist-val">Muscle ${m.muscle}kg ${tr(m.muscle,p?.muscle,true)}</span>`:''} ${m.bodyFat?`<span class="hist-val">Fat ${m.bodyFat}% ${tr(m.bodyFat,p?.bodyFat,false)}</span>`:''} ${m.visceral?`<span class="hist-val">Visceral ${m.visceral} ${tr(m.visceral,p?.visceral,false)}</span>`:''} ${m.weight?`<span class="hist-val">Wt ${m.weight}kg</span>`:''}</div></div>`;}).join('')+'</div>';
+  }
+
+  // ── SESSIONS TAB ──
   const sEl=document.getElementById('sessionHistory');
-  const all=sessions.filter(s=>s.completed||s.bonusJog).sort((a,b)=>b.date.localeCompare(a.date));
   const tl={strength:'Strength',jog:'Slow jog',bonusjog:'Bonus jog'};
-  if(!all.length){sEl.innerHTML='<div class="empty"><span class="empty-icon">🏃</span><div class="empty-text">No sessions or activities logged yet.</div></div>';}
-  else{sEl.innerHTML=all.slice(0,20).map(s=>`<div class="hist-row"><span class="hist-date">${s.date}</span><div style="display:flex;gap:5px;">${s.completed?`<span class="badge badge-green">${tl[s.type]||'Session'} ✓</span>`:''} ${s.bonusJog?`<span class="badge badge-amber">+Bonus jog ✓</span>`:''}</div></div>`).join('');}
+  const actEmoji={cycling:'🚴',badminton:'🏸',swimming:'🏊',walking:'🚶',yoga:'🧘'};
+  const actLabel={cycling:'Cycling',badminton:'Badminton',swimming:'Swimming',walking:'Walk',yoga:'Yoga'};
+
+  // Build a combined date set: sessions + any otherActs-only days
+  const allMap={};
+  sessions.forEach(s=>{ allMap[s.date]=allMap[s.date]||{...s}; });
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('otherActs_')){
+      const date=k.replace('otherActs_','');
+      const acts=gs(k,[]);
+      if(acts.length){
+        if(!allMap[date]) allMap[date]={date,completed:false,bonusJog:false,bonusStrength:false,otherActs:acts};
+        else allMap[date].otherActs=acts;
+      }
+    }
+  }
+  const all=Object.values(allMap)
+    .filter(s=>s.completed||s.bonusJog||s.bonusStrength||(s.otherActs&&s.otherActs.length))
+    .sort((a,b)=>b.date.localeCompare(a.date));
+
+  if(!all.length){
+    sEl.innerHTML='<div class="empty"><span class="empty-icon">🏃</span><div class="empty-text">No sessions or activities logged yet.</div></div>';
+  } else {
+    sEl.innerHTML=all.slice(0,40).map(s=>{
+      const acts=s.otherActs&&s.otherActs.length?s.otherActs:gs('otherActs_'+s.date,[]);
+      const actBadges=acts.map(a=>`<span class="badge" style="background:rgba(255,255,255,0.05);color:var(--text2);border:1px solid var(--border2);">${actEmoji[a]||'🏃'} ${actLabel[a]||a}</span>`).join('');
+      return`<div class="hist-row" style="flex-direction:column;align-items:flex-start;gap:5px;padding:10px 0;">
+        <span class="hist-date">${s.date}</span>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+          ${s.completed?`<span class="badge badge-green">${tl[s.type]||'Session'} ✓</span>`:''}
+          ${s.bonusJog?'<span class="badge badge-amber">+Jog ✓</span>':''}
+          ${s.bonusStrength?'<span class="badge badge-blue">+Strength ✓</span>':''}
+          ${actBadges}
+        </div>
+      </div>`;
+    }).join('');
+  }
 }
 
 /* ── BACKUP / EXPORT / IMPORT ── */
