@@ -23,8 +23,8 @@
   .header{padding:28px 20px 0;display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px;}
   .header-title{font-size:22px;font-weight:600;letter-spacing:-0.5px;}
   .header-date{font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;}
-  .vitd-pill{display:inline-flex;align-items:center;gap:6px;background:var(--amber-dim);border:1px solid rgba(240,164,48,0.2);border-radius:20px;padding:5px 12px;font-size:11px;color:var(--amber);font-weight:600;cursor:pointer;user-select:none;transition:all 0.15s;}
-  .vitd-pill.taken{background:var(--green-dim);border-color:rgba(46,204,138,0.2);color:var(--green);}
+  .supp-pill{display:inline-flex;align-items:center;gap:5px;background:var(--amber-dim);border:1px solid rgba(240,164,48,0.2);border-radius:20px;padding:4px 10px;font-size:11px;color:var(--amber);font-weight:600;cursor:pointer;user-select:none;transition:all 0.15s;}
+  .supp-pill.taken{background:var(--green-dim);border-color:rgba(46,204,138,0.2);color:var(--green);}
   .badge-sync{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;font-family:'DM Mono',monospace;border:none;cursor:pointer;transition:all 0.2s;}
   .badge-sync.ok{background:var(--green-dim2);color:var(--green);}
   .badge-sync.syncing{background:var(--blue-dim);color:var(--blue);animation:spin 1s linear infinite;}
@@ -151,7 +151,11 @@
       <div class="header-date" id="headerDate"></div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-      <button class="vitd-pill" id="vitdPill" onclick="toggleVitD()">☀️ Vitamin D</button>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;">
+        <button class="supp-pill" id="vitdPill"  onclick="toggleSupp('vitd')" >☀️ Vit D</button>
+        <button class="supp-pill" id="b12Pill"   onclick="toggleSupp('b12')"  >💊 Vit B12</button>
+        <button class="supp-pill" id="acvPill"   onclick="toggleSupp('acv')"  >🍎 ACV</button>
+      </div>
       <button class="badge-sync off" id="syncBadge" onclick="manualSync()">○ Local only</button>
     </div>
   </div>
@@ -422,14 +426,23 @@ function showToast(msg,type='success'){
   setTimeout(()=>t.className='toast',2800);
 }
 
-function toggleVitD(){
-  const k='vitd_'+todayKey();ss(k,!gs(k,false));updateVitDPill();
+const SUPPS={
+  vitd:{ id:'vitdPill', emoji:'☀️', label:'Vit D',  takenLabel:'✅ Vit D' },
+  b12: { id:'b12Pill',  emoji:'💊', label:'Vit B12', takenLabel:'✅ B12'  },
+  acv: { id:'acvPill',  emoji:'🍎', label:'ACV',     takenLabel:'✅ ACV'  },
+};
+function toggleSupp(key){
+  const k=key+'_'+todayKey(); ss(k,!gs(k,false)); updateSuppPills();
 }
-function updateVitDPill(){
-  const taken=gs('vitd_'+todayKey(),false);
-  const p=document.getElementById('vitdPill');
-  p.className='vitd-pill'+(taken?' taken':'');
-  p.textContent=taken?'✅ Vitamin D taken':'☀️ Vitamin D';
+function updateSuppPills(){
+  const today=todayKey();
+  Object.entries(SUPPS).forEach(([key,s])=>{
+    const taken=gs(key+'_'+today,false);
+    const p=document.getElementById(s.id);
+    if(!p) return;
+    p.className='supp-pill'+(taken?' taken':'');
+    p.textContent=taken?s.takenLabel:s.emoji+' '+s.label;
+  });
 }
 
 function renderWeekGrid(){
@@ -563,6 +576,33 @@ function renderTodayWorkout(){
       }
     }
   }
+  // ── Other activity (always shown) ──
+  const otherActs=gs('otherActs_'+key,[]);
+  const actOptions=[
+    {id:'cycling',   emoji:'🚴', label:'Cycling'},
+    {id:'badminton', emoji:'🏸', label:'Badminton'},
+    {id:'swimming',  emoji:'🏊', label:'Swimming'},
+    {id:'walking',   emoji:'🚶', label:'Outdoor walk'},
+    {id:'yoga',      emoji:'🧘', label:'Yoga / Stretching'},
+  ];
+  html+=`<div class="card">
+    <div class="card-title" style="margin-bottom:8px;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Other activity today
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:${otherActs.length?'10px':'0'};">
+      ${actOptions.map(a=>`
+        <button onclick="toggleAct('${a.id}')" style="
+          background:${otherActs.includes(a.id)?'var(--green-dim2)':'var(--surface2)'};
+          border:1px solid ${otherActs.includes(a.id)?'rgba(46,204,138,0.4)':'var(--border2)'};
+          color:${otherActs.includes(a.id)?'var(--green)':'var(--text2)'};
+          border-radius:20px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;
+          font-family:'DM Sans',sans-serif;transition:all 0.15s;">
+          ${a.emoji} ${a.label}${otherActs.includes(a.id)?' ✓':''}
+        </button>`).join('')}
+    </div>
+    ${otherActs.length?`<div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;">Logged: ${otherActs.map(id=>{const a=actOptions.find(x=>x.id===id);return a?a.emoji+' '+a.label:id;}).join(' · ')}</div>`:''}
+  </div>`;
   el.innerHTML=html;
 }
 
@@ -619,6 +659,22 @@ function completeBonusStrength(){
   ss('fitSessions',s);renderTodayWorkout();renderWeekGrid();renderStreak();
   if(hasScript()) scriptPost('saveSession', sess).catch(e=>console.error('Sheet session save:',e));
   showToast('💪 Bonus strength logged!');
+}
+
+function toggleAct(actId){
+  const key=todayKey();
+  const k='otherActs_'+key;
+  let acts=gs(k,[]);
+  acts.includes(actId)?acts=acts.filter(a=>a!==actId):acts.push(actId);
+  ss(k,acts);
+  // Also persist in sessions for history
+  let sessions=getSessions();
+  let sess=sessions.find(s=>s.date===key);
+  if(!sess){sess={date:key,checked:[],bonusChecked:[],bonusStrChecked:[],completed:false};sessions.push(sess);}
+  sess.otherActs=acts;
+  ss('fitSessions',sessions);
+  renderTodayWorkout();
+  if(acts.includes(actId)||true) showToast(acts.includes(actId)?'Activity logged!':'Activity removed');
 }
 
 function saveMetrics(){
@@ -681,11 +737,18 @@ function renderHistory(){
 
 /* ── BACKUP / EXPORT / IMPORT ── */
 function exportData(){
+  // Gather all otherActs keys from localStorage
+  const otherActsData={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('otherActs_')) otherActsData[k]=gs(k,[]);
+  }
   const payload={
-    version:1,
+    version:2,
     exportedAt:new Date().toISOString(),
     metrics:getMetrics(),
     sessions:getSessions(),
+    otherActs:otherActsData,
   };
   const json=JSON.stringify(payload,null,2);
   const blob=new Blob([json],{type:'application/json'});
@@ -722,6 +785,8 @@ function importData(event){
       let exSess=getSessions();
       data.sessions.forEach(s=>{exSess=exSess.filter(x=>x.date!==s.date);exSess.push(s);});
       ss('fitSessions',exSess);
+      // Restore otherActs
+      if(data.otherActs){Object.entries(data.otherActs).forEach(([k,v])=>ss(k,v));}
       okMsg.style.display='block';setTimeout(()=>okMsg.style.display='none',3000);
       renderWeekGrid();renderStreak();renderLatestMetrics();updateBackupScreen();
       showToast('⬆ Data restored!');
@@ -775,7 +840,9 @@ function updateBackupScreen(){
     const m=getMetrics(),s=getSessions();
     const bytes=JSON.stringify({m,s}).length;
     const kb=(bytes/1024).toFixed(1);
-    stats.innerHTML=`Metric readings: ${m.length}<br>Sessions logged: ${s.filter(x=>x.completed||x.bonusJog||x.bonusStrength).length}<br>Storage used: ~${kb} KB`;
+    const today=todayKey();
+    const suppStatus=Object.keys(SUPPS).map(k=>gs(k+'_'+today,false)?SUPPS[k].takenLabel:'').filter(Boolean).join(' ');
+    stats.innerHTML=`Metric readings: ${m.length}<br>Sessions logged: ${s.filter(x=>x.completed||x.bonusJog||x.bonusStrength).length}<br>Storage used: ~${kb} KB<br>Today's supplements: ${suppStatus||'none taken yet'}`;
   }
 }
 
@@ -815,7 +882,7 @@ const now=new Date();
 document.getElementById('headerDate').textContent=DAYS[now.getDay()]+', '+now.getDate()+' '+MONTHS[now.getMonth()]+' '+now.getFullYear();
 document.getElementById('logDate').value=todayKey();
 SCRIPT_URL = gs('scriptUrl','');
-updateVitDPill();renderWeekGrid();renderStreak();renderLatestMetrics();
+updateSuppPills();renderWeekGrid();renderStreak();renderLatestMetrics();
 if(hasScript()){ syncFromSheet(); } else { setSyncBadge('off'); }
 </script>
 </body>
