@@ -139,6 +139,11 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .toast.success{border-color:rgba(46,204,138,0.4);color:var(--green);}
   .toast.error{border-color:rgba(240,82,82,0.4);color:var(--red);}
+  /* Timer */
+  @keyframes tmPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.04);}}
+  .tm-work{color:#2ecc8a;}
+  .tm-rest{color:#f0a430;}
+  .tm-done{color:#4f8ef7;}
   /* Confirm dialog */
   .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;}
   .overlay.show{display:flex;}
@@ -330,6 +335,48 @@
   </div>
 </div>
 
+<!-- Timer Modal -->
+<div id="timerModal" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:200;flex-direction:column;align-items:center;justify-content:flex-start;padding:0;">
+  <div style="width:100%;max-width:480px;height:100%;display:flex;flex-direction:column;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 20px 0;">
+      <div>
+        <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.08em;" id="tmProgress"></div>
+        <div style="font-size:16px;font-weight:600;margin-top:2px;" id="tmExName"></div>
+      </div>
+      <button onclick="closeTimer()" style="background:var(--surface2);border:1px solid var(--border2);border-radius:50%;width:36px;height:36px;color:var(--text2);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <!-- Phase label -->
+    <div style="text-align:center;margin-top:24px;">
+      <div id="tmPhaseLabel" style="font-size:13px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--text2);margin-bottom:4px;"></div>
+      <div id="tmRepsLabel" style="font-size:14px;color:var(--text3);font-family:'DM Mono',monospace;"></div>
+    </div>
+    <!-- Circular timer -->
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+      <div style="position:relative;width:220px;height:220px;">
+        <svg viewBox="0 0 220 220" style="width:220px;height:220px;transform:rotate(-90deg);">
+          <circle cx="110" cy="110" r="96" fill="none" stroke="var(--surface2)" stroke-width="10"/>
+          <circle id="tmRing" cx="110" cy="110" r="96" fill="none" stroke="#2ecc8a" stroke-width="10"
+            stroke-linecap="round" stroke-dasharray="603" stroke-dashoffset="0" style="transition:stroke-dashoffset 1s linear, stroke 0.3s;"/>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+          <div id="tmCountdown" style="font-size:64px;font-weight:600;font-family:'DM Mono',monospace;color:var(--text);line-height:1;"></div>
+          <div id="tmSec" style="font-size:12px;color:var(--text3);margin-top:4px;">seconds</div>
+        </div>
+      </div>
+      <!-- Set dots -->
+      <div style="display:flex;gap:8px;margin-top:20px;" id="tmSetDots"></div>
+    </div>
+    <!-- Controls -->
+    <div style="padding:20px;display:flex;gap:10px;">
+      <button id="tmPauseBtn" onclick="togglePause()" style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:14px;font-size:15px;font-weight:600;color:var(--text);cursor:pointer;font-family:'DM Sans',sans-serif;">⏸ Pause</button>
+      <button onclick="skipPhase()" style="flex:1;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:14px;font-size:15px;font-weight:600;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;">⏭ Skip</button>
+    </div>
+    <!-- Next up -->
+    <div id="tmNextUp" style="background:var(--surface);border-top:1px solid var(--border);padding:14px 20px;font-size:12px;color:var(--text3);text-align:center;"></div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
@@ -357,12 +404,12 @@ const SCHEDULE=[
 ];
 const EXERCISES={
   strength:[
-    {name:'Bodyweight squats',      detail:'3 × 15 reps · 60s rest'},
-    {name:'Push-ups',               detail:'3 × 10–15 reps'},
-    {name:'Plank',                  detail:'3 × 30–45 sec'},
-    {name:'Hip bridges',            detail:'3 × 15 reps'},
-    {name:'Step-ups (chair/stairs)',detail:'3 × 12 each leg'},
-    {name:'Lunges',                 detail:'3 × 10 each leg'},
+    {name:'Bodyweight squats',      detail:'3 × 15 reps · 60s rest', sets:3, reps:'15 reps',    workTime:40,  restTime:60,  emoji:'🦵'},
+    {name:'Push-ups',               detail:'3 × 12 reps · 60s rest', sets:3, reps:'12 reps',    workTime:35,  restTime:60,  emoji:'💪'},
+    {name:'Plank',                  detail:'3 × 40 sec · 45s rest',  sets:3, reps:'40 sec hold', workTime:40, restTime:45,  emoji:'🧱'},
+    {name:'Hip bridges',            detail:'3 × 15 reps · 45s rest', sets:3, reps:'15 reps',    workTime:35,  restTime:45,  emoji:'🍑'},
+    {name:'Step-ups (chair/stairs)',detail:'3 × 12 each leg · 60s rest',sets:3,reps:'12 each leg',workTime:45,restTime:60, emoji:'🪜'},
+    {name:'Lunges',                 detail:'3 × 10 each leg · 60s rest',sets:3,reps:'10 each leg',workTime:40,restTime:60, emoji:'🏃'},
   ],
   jog:[
     {name:'Warm-up march in place', detail:'3–5 min, easy pace'},
@@ -613,7 +660,10 @@ function renderTodayWorkout(){
       </div>`).join('')}
       ${sess.completed
         ?'<div class="complete-banner">\u{1F3C6} Session complete! Great work.</div>'
-        :'<button class="btn btn-primary" onclick="completeSession()">\u2713 Mark session complete</button>'}
+        :`<div style="display:flex;gap:8px;">
+          <button class="btn btn-green" onclick="startGuidedWorkout()" style="flex:1;">\u25B6 Start guided timer</button>
+          <button class="btn btn-primary" onclick="completeSession()" style="flex:1;">\u2713 Mark done</button>
+        </div>`}
     </div>`;
     // On strength days: optional bonus jog
     const isStrength=sched.type==='strength';
@@ -1127,6 +1177,186 @@ function showScreen(id,btn){
   if(id==='workout')renderTodayWorkout();
   if(id==='history')renderHistory();
   if(id==='backup')updateBackupScreen();
+}
+
+/* ── GUIDED TIMER ── */
+let tmState = null;
+let tmInterval = null;
+let tmPaused = false;
+const CIRCUMFERENCE = 2 * Math.PI * 96; // ~603
+
+function startGuidedWorkout(){
+  const exs = EXERCISES.strength;
+  tmState = {
+    exercises: exs,
+    exIdx: 0,
+    setIdx: 0,
+    phase: 'work', // 'work' | 'rest' | 'between'
+    timeLeft: exs[0].workTime,
+    totalSets: exs[0].sets,
+  };
+  tmPaused = false;
+  document.getElementById('timerModal').style.display = 'flex';
+  renderTimer();
+  startTick();
+}
+
+function closeTimer(){
+  clearInterval(tmInterval);
+  document.getElementById('timerModal').style.display = 'none';
+  tmState = null; tmPaused = false;
+}
+
+function togglePause(){
+  tmPaused = !tmPaused;
+  document.getElementById('tmPauseBtn').textContent = tmPaused ? '▶ Resume' : '⏸ Pause';
+  if(!tmPaused) startTick();
+  else clearInterval(tmInterval);
+}
+
+function skipPhase(){
+  clearInterval(tmInterval);
+  advancePhase();
+  if(!tmPaused) startTick();
+}
+
+function startTick(){
+  clearInterval(tmInterval);
+  tmInterval = setInterval(()=>{
+    if(tmPaused) return;
+    tmState.timeLeft--;
+    renderTimer();
+    if(tmState.timeLeft <= 0){
+      clearInterval(tmInterval);
+      playBeep(tmState.phase === 'work');
+      advancePhase();
+      if(tmState) startTick();
+    }
+  }, 1000);
+}
+
+function advancePhase(){
+  if(!tmState) return;
+  const ex = tmState.exercises[tmState.exIdx];
+  if(tmState.phase === 'work'){
+    // After work: rest (unless last set of last exercise)
+    const isLastSet = tmState.setIdx >= ex.sets - 1;
+    const isLastEx  = tmState.exIdx >= tmState.exercises.length - 1;
+    if(isLastSet && isLastEx){
+      // All done!
+      tmState.phase = 'done';
+      tmState.timeLeft = 0;
+      renderTimer();
+      // Auto-complete after 2s
+      setTimeout(()=>{ closeTimer(); completeSession(); }, 2000);
+      return;
+    }
+    tmState.phase = 'rest';
+    tmState.timeLeft = isLastSet
+      ? (tmState.exercises[tmState.exIdx+1]?.restTime || 60) // longer break between exercises
+      : ex.restTime;
+    // If last set, add 10s extra between exercises
+    if(isLastSet) tmState.timeLeft = Math.max(tmState.timeLeft, 60);
+  } else {
+    // After rest: next set or next exercise
+    const ex2 = tmState.exercises[tmState.exIdx];
+    const isLastSet = tmState.setIdx >= ex2.sets - 1;
+    if(isLastSet){
+      tmState.exIdx++;
+      tmState.setIdx = 0;
+    } else {
+      tmState.setIdx++;
+    }
+    tmState.phase = 'work';
+    const newEx = tmState.exercises[tmState.exIdx];
+    tmState.timeLeft = newEx.workTime;
+  }
+  renderTimer();
+}
+
+function renderTimer(){
+  if(!tmState) return;
+  const ex = tmState.exercises[tmState.exIdx];
+  const isWork = tmState.phase === 'work';
+  const isRest = tmState.phase === 'rest';
+  const isDone = tmState.phase === 'done';
+
+  // Progress header
+  document.getElementById('tmProgress').textContent =
+    `Exercise ${tmState.exIdx+1} of ${tmState.exercises.length}`;
+  document.getElementById('tmExName').textContent =
+    isDone ? '🏆 Workout complete!' : ex.emoji + ' ' + ex.name;
+
+  // Phase label
+  const phaseEl = document.getElementById('tmPhaseLabel');
+  phaseEl.textContent = isDone ? 'All done!' : isWork ? '● WORK' : '● REST';
+  phaseEl.style.color = isDone ? '#4f8ef7' : isWork ? '#2ecc8a' : '#f0a430';
+
+  // Reps label
+  document.getElementById('tmRepsLabel').textContent =
+    isDone ? 'Great job!' : isWork
+      ? `Set ${tmState.setIdx+1} of ${ex.sets} · ${ex.reps}`
+      : isWork ? '' : 'Rest up — next set coming';
+
+  // Countdown
+  document.getElementById('tmCountdown').textContent =
+    isDone ? '✓' : tmState.timeLeft;
+  document.getElementById('tmSec').textContent =
+    isDone ? '' : tmState.timeLeft === 1 ? 'second' : 'seconds';
+
+  // Ring
+  const ring = document.getElementById('tmRing');
+  const totalTime = isWork ? ex.workTime : ex.restTime || 60;
+  const pct = isDone ? 1 : Math.max(0, tmState.timeLeft / totalTime);
+  ring.style.strokeDashoffset = CIRCUMFERENCE * pct;
+  ring.style.stroke = isDone ? '#4f8ef7' : isWork ? '#2ecc8a' : '#f0a430';
+
+  // Set dots
+  const dots = document.getElementById('tmSetDots');
+  dots.innerHTML = Array.from({length: ex.sets}, (_,i) => {
+    const done = i < tmState.setIdx || (i === tmState.setIdx && !isWork && tmState.setIdx === ex.sets-1);
+    const active = i === tmState.setIdx && isWork;
+    return `<div style="width:10px;height:10px;border-radius:50%;background:${
+      done ? '#2ecc8a' : active ? '#4f8ef7' : 'var(--surface2)'
+    };border:1.5px solid ${
+      done ? '#2ecc8a' : active ? '#4f8ef7' : 'var(--border2)'
+    };transition:all 0.3s;"></div>`;
+  }).join('');
+
+  // Next up
+  const nextEl = document.getElementById('tmNextUp');
+  if(isDone){
+    nextEl.textContent = 'Marking session complete…';
+  } else if(isWork){
+    const setsLeft = ex.sets - tmState.setIdx - 1;
+    nextEl.textContent = setsLeft > 0
+      ? `Next: ${setsLeft} more set${setsLeft>1?'s':''} of ${ex.name} · then ${ex.restTime}s rest`
+      : tmState.exIdx < tmState.exercises.length-1
+        ? `Next exercise: ${tmState.exercises[tmState.exIdx+1].emoji} ${tmState.exercises[tmState.exIdx+1].name}`
+        : 'Last set — almost done!';
+  } else {
+    const nextEx = tmState.exercises[tmState.exIdx + (tmState.setIdx >= ex.sets-1 ? 1 : 0)];
+    const nextSet = tmState.setIdx >= ex.sets-1 ? 1 : tmState.setIdx+2;
+    const isNewEx = tmState.setIdx >= ex.sets-1;
+    nextEl.textContent = isNewEx && nextEx
+      ? `Coming up: ${nextEx.emoji} ${nextEx.name} · ${nextEx.reps}`
+      : `Coming up: ${ex.name} Set ${nextSet} · ${ex.reps}`;
+  }
+}
+
+function playBeep(isWorkEnd){
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = isWorkEnd ? 880 : 440;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  } catch(e){}
 }
 
 /* ── INIT ── */
