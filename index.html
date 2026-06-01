@@ -615,6 +615,29 @@ function renderTodayWorkout(){
         ?'<div class="complete-banner">\u{1F3C6} Session complete! Great work.</div>'
         :'<button class="btn btn-primary" onclick="completeSession()">\u2713 Mark session complete</button>'}
     </div>`;
+    // On strength days: optional bonus jog
+    const isStrength=sched.type==='strength';
+    if(isStrength){
+      if(sess.bonusJog){
+        html+=`<div class="bonus-done-banner" style="background:var(--green-dim2);border:1px solid rgba(46,204,138,0.3);color:var(--green);border-radius:var(--radius-sm);padding:10px 14px;text-align:center;font-size:12px;font-weight:600;margin-bottom:12px;">\u2713 Bonus slow jog logged!</div>`;
+      } else {
+        const jogExs=EXERCISES.jog;
+        html+=`<div class="card">
+          <div class="optional-header">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Optional bonus \u2014 super slow jog
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:14px;"><span class="badge badge-green">Fat oxidation</span><span class="badge badge-blue">180 bpm</span></div>
+          ${jogExs.map((ex,i)=>`<div class="ex-row">
+            <div class="ex-check ${bonusChecked.includes(i)?'checked':''}" onclick="toggleBonus(${i})" tabindex="0">
+              ${bonusChecked.includes(i)?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':''}
+            </div>
+            <div><div class="ex-name ${bonusChecked.includes(i)?'done-txt':''}">${ex.name}</div><div class="ex-detail">${ex.detail}</div></div>
+          </div>`).join('')}
+          <button class="btn btn-green" onclick="completeBonusJog()">\u{1F3C3} Log bonus jog</button>
+        </div>`;
+      }
+    }
     // On jog days: optional bonus strength
     if(isJog){
       if(sess.bonusStrength){
